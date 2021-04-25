@@ -97,23 +97,28 @@ func (s *Server) CheckUser(ctx context.Context, req *pb.Request) (*pb.Result, er
 	sum := sha256.Sum256([]byte(req.Password))
 	pass := fmt.Sprintf("%x", sum)
 
-	// session, err := mgo.Dial("mongodb-user")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer session.Close()
-
-	// c := session.DB("user-db").C("user")
-
-	// user := User{}
-	// err = c.Find(bson.M{"username": req.Username}).One(&user)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	res.Correct = false
-	if true_pass, found := s.users[req.Username]; found {
-	    res.Correct = pass == true_pass
+	session, err := mgo.Dial("mongodb-user")
+	if err != nil {
+		panic(err)
 	}
+	defer session.Close()
+
+	c := session.DB("user-db").C("user")
+	var users []User
+	err2 := c.Find(&bson.M{"username": req.Username}).All(&users)
+	res.Correct = false
+	if err2 != nil {
+		log.Fatal(err2)
+	} else {
+		for _, user := range users {
+			res.Correct = pass == user.Password
+		}
+	}
+
+	// res.Correct = false
+	// if true_pass, found := s.users[req.Username]; found {
+	//     res.Correct = pass == true_pass
+	// }
 	
 	// res.Correct = user.Password == pass
 
@@ -121,6 +126,132 @@ func (s *Server) CheckUser(ctx context.Context, req *pb.Request) (*pb.Result, er
 
 	return res, nil
 }
+
+// CheckUser returns whether the username and password are correct.
+func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResult, error) {
+
+	res := new(pb.RegisterResult)
+	res.Correct = false
+
+	user_name := req.Username
+	sum := sha256.Sum256([]byte(req.Password))
+	pass := fmt.Sprintf("%x", sum)
+	age := req.Age
+	sex := req.Sex
+	mail := req.Mail
+	phone := req.Phone
+	orderhistory := ""
+
+	session, err := mgo.Dial("mongodb-user")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	c := session.DB("user-db").C("user")
+
+	count, err := c.Find(&bson.M{"username": user_name}).Count()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if count == 0{
+		err = c.Insert(&User{user_name, pass, age, sex, mail, phone, orderhistory})
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			res.Correct = true
+		}
+	}
+
+	fmt.Printf("Done insert users\n")
+
+	return res, nil
+}
+
+
+// CheckUser returns whether the username and password are correct.
+func (s *Server) Modify(ctx context.Context, req *pb.ModifyRequest) (*pb.ModifyResult, error) {
+
+	res := new(pb.ModifyResult)
+	res.Correct = false
+
+	user_name := req.Username
+	sum := sha256.Sum256([]byte(req.Password))
+	pass := fmt.Sprintf("%x", sum)
+	age := req.Age
+	sex := req.Sex
+	mail := req.Mail
+	phone := req.Phone
+	orderhistory := ""
+
+	session, err := mgo.Dial("mongodb-user")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	c := session.DB("user-db").C("user")
+
+	count, err := c.Find(&bson.M{"username": user_name}).Count()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if count == 1{
+		err := c.Remove(&bson.M{"username": user_name})
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			err_2 := c.Insert(&User{user_name, pass, age, sex, mail, phone, orderhistory})
+			if err_2 != nil {
+				log.Fatal(err_2)
+			} else {
+				res.Correct = true
+			}
+		}
+		
+	}
+
+	fmt.Printf("Done modify users\n")
+
+	return res, nil
+}
+
+// CheckUser returns whether the username and password are correct.
+func (s *Server) Delete(ctx context.Context, req *pb.Request) (*pb.Result, error) {
+	res := new(pb.Result)
+	res.Correct = false
+
+	// fmt.Printf("CheckUser")
+
+	// sum := sha256.Sum256([]byte(req.Password))
+	// pass := fmt.Sprintf("%x", sum)
+
+	session, err := mgo.Dial("mongodb-user")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	c := session.DB("user-db").C("user")
+	count, err := c.Find(&bson.M{"username": req.Username}).Count()
+
+	res.Correct = false
+	if err != nil {
+		log.Fatal(err)
+	} 
+	if count != 0 {
+		
+		err := c.Remove(&bson.M{"username": req.Username})
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			res.Correct = true
+		}
+	}
+
+	return res, nil
+}
+
 
 // loadUsers loads hotel users from mongodb.
 func loadUsers(session *mgo.Session) map[string]string {
@@ -150,7 +281,58 @@ func loadUsers(session *mgo.Session) map[string]string {
 	return res
 }
 
+// // insertUsers loads hotel users from mongodb.
+// func (s *Server) insertUsers(session *mgo.Session, req *pb.RegisterRequest) (*pb.RegisterResult, error) {
+
+
+// 	res := new(pb.RegisterResult)
+// 	res.Correct = false
+
+// 	user_name := req.Username
+// 	sum := sha256.Sum256([]byte(req.Password))
+// 	pass := fmt.Sprintf("%x", sum)
+// 	age := req.Age
+// 	sex := req.Sex
+// 	mail := req.Mail
+// 	phone := req.Phone
+// 	orderhistory := ""
+
+	
+// 	s := session.Copy()
+// 	defer s.Close()
+// 	c := s.DB("user-db").C("user")
+
+// 	// unmarshal json profiles
+// 	// var users []User
+// 	// err := c.Find(bson.M{}).All(&users)
+// 	// if err != nil {
+// 	// 	log.Println("Failed get users data: ", err)
+// 	// }
+
+// 	count, err := c.Find(&bson.M{"username": user_name}).Count()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	if count == 0{
+// 		err = c.Insert(&User{user_name, pass, age, sex, mail, phone, orderhistory})
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		} else {
+// 			res.Correct = true
+// 		}
+// 	}
+
+// 	fmt.Printf("Done insert users\n")
+
+// 	return res, nil
+// }
+
 type User struct {
 	Username string `bson:"username"`
 	Password string `bson:"password"`
+	Age int32 `bson:"age"`
+	Sex string `bson:"sex"`
+	Mail string `bson:"mail"`
+	Phone string `bson:"phone"`
+	Orderhistory string `bson:"orderhistory"`
 }

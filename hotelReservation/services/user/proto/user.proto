@@ -5,6 +5,9 @@ package user;
 service User {
   // CheckUser returns whether the username and password are correct
   rpc CheckUser(Request) returns (Result);
+  rpc Register(RegisterRequest) returns (RegisterResult);
+  rpc Modify(ModifyRequest) returns (ModifyResult);
+  rpc Delete(Request) returns (Result);
 }
 
 message Request {
@@ -13,5 +16,33 @@ message Request {
 }
 
 message Result {
+  bool correct = 1;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  int32 age = 3;
+  string sex = 4;
+  string mail = 5;
+  string phone = 6;
+  string orderhistory = 7;
+}
+
+message RegisterResult {
+  bool correct = 1;
+}
+
+message ModifyRequest {
+  string username = 1;
+  string password = 2;
+  int32 age = 3;
+  string sex = 4;
+  string mail = 5;
+  string phone = 6;
+  string orderhistory = 7;
+}
+
+message ModifyResult {
   bool correct = 1;
 }

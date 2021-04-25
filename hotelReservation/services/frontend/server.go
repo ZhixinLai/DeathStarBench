@@ -63,6 +63,9 @@ func (s *Server) Run() error {
 	mux.Handle("/hotels", http.HandlerFunc(s.searchHandler))
 	mux.Handle("/recommendations", http.HandlerFunc(s.recommendHandler))
 	mux.Handle("/user", http.HandlerFunc(s.userHandler))
+  	mux.Handle("/userregister", http.HandlerFunc(s.userRegisterHandler))
+	mux.Handle("/usermodify", http.HandlerFunc(s.userModifyHandler))
+	mux.Handle("/userdelete", http.HandlerFunc(s.userDeleteHandler))
 	mux.Handle("/reservation", http.HandlerFunc(s.reservationHandler))
 
 	// fmt.Printf("frontend starts serving\n")
@@ -292,6 +295,123 @@ func (s *Server) userHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(res)
 }
+
+func (s *Server) userRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+
+	username, password, age, sex, mail, phone := r.URL.Query().Get("username"), r.URL.Query().Get("password"), r.URL.Query().Get("age"), r.URL.Query().Get("sex"), r.URL.Query().Get("mail"), r.URL.Query().Get("phone")
+	if username == "" || password == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+
+	age_int, err := strconv.ParseInt(age, 10, 32)
+	if err != nil {
+		panic(err)
+	}
+
+	// Register
+	recResp, err := s.userClient.Register(ctx, &user.RegisterRequest{
+		Username: username,
+		Password: password,
+		Age: int32(age_int),
+		Sex: sex,
+		Mail: mail,
+		Phone: phone,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	str := "Register successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your username and password. "
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
+
+
+
+func (s *Server) userModifyHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+
+	username, password, age, sex, mail, phone := r.URL.Query().Get("username"), r.URL.Query().Get("password"), r.URL.Query().Get("age"), r.URL.Query().Get("sex"), r.URL.Query().Get("mail"), r.URL.Query().Get("phone")
+	if username == "" || password == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+
+	age_int, err := strconv.ParseInt(age, 10, 32)
+	if err != nil {
+		panic(err)
+	}
+
+	// Modify
+	recResp, err := s.userClient.Modify(ctx, &user.ModifyRequest{
+		Username: username,
+		Password: password,
+		Age: int32(age_int),
+		Sex: sex,
+		Mail: mail,
+		Phone: phone,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	str := "Modify successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your username and password. "
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) userDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+
+	username, password := r.URL.Query().Get("username"), r.URL.Query().Get("password")
+	if username == "" || password == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+
+	// Delete user
+	recResp, err := s.userClient.Delete(ctx, &user.Request{
+		Username: username,
+		Password: password,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	str := "Delete successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your username and password. "
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
+
 
 func (s *Server) reservationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")

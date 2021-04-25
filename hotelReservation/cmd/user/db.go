@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"strconv"
@@ -11,6 +12,11 @@ import (
 type User struct {
 	Username string `bson:"username"`
 	Password string `bson:"password"`
+	Age int32 `bson:"age"`
+	Sex string `bson:"sex"`
+	Mail string `bson:"mail"`
+	Phone string `bson:"phone"`
+	Orderhistory string `bson:"orderhistory"`
 }
 
 func initializeDatabase(url string) *mgo.Session {
@@ -30,13 +36,23 @@ func initializeDatabase(url string) *mgo.Session {
 		for j := 0; j < 10; j++ {
 			password += suffix
 		}
+    
+		sum := sha256.Sum256([]byte(password))
+		pass := fmt.Sprintf("%x", sum)
 
+		var age int32 = 30
+		sex := "male"
+		mail := suffix + "@cornell.edu"
+		phone := "(607) 262-" + suffix
+		orderhistory := "order_" + suffix 
+    
+    
 		count, err := c.Find(&bson.M{"username": user_name}).Count()
 		if err != nil {
 			log.Fatal(err)
 		}
 		if count == 0{
-			err = c.Insert(&User{user_name, password})
+			err = c.Insert(&User{user_name, pass, age, sex, mail, phone, orderhistory})
 			if err != nil {
 				log.Fatal(err)
 			}
