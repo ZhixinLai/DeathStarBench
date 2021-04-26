@@ -12,10 +12,27 @@ Supported actions:
 * Place reservations
 
 ## Pre-requirements
+### Runing dependencies
 - Docker
 - Docker-compose
 - luarocks (apt-get install luarocks)
 - luasocket (luarocks install luasocket)
+
+### Developing dependencies
+If changes are made to the Protocol Buffer files, the dependencies are:
+
+- proto buffer: >= 3.0.0
+- protoc-gen-go: 1.0.0
+
+How to install protoc-gen-go==1.0.0:
+```bash
+GIT_TAG="v1.0.0"
+go get -d -u github.com/golang/protobuf/protoc-gen-go
+git -C "$(go env GOPATH)"/src/github.com/golang/protobuf checkout $GIT_TAG
+go install github.com/golang/protobuf/protoc-gen-go
+
+```
+
 
 ## Running the social network application
 ### Before you start
@@ -30,6 +47,17 @@ pulled from Docker Hub.
 #### workload generation
 ```bash
 $WRK_DIR/wrk -D exp -t <num-threads> -c <num-conns> -d <duration> -L -s ./wrk2_lua_scripts/mixed-workload_type_1.lua http://x.x.x.x:5000 -R <reqs-per-sec>
+```
+
+### New proto and compile
+If changes are made to the Protocol Buffer files use the Makefile to regenerate:
+
+```bash
+For all files at root directory:
+make proto
+
+For a certain file:
+protoc user.proto --go_out=plugins=grpc:.
 ```
 
 ### Questions and contact
