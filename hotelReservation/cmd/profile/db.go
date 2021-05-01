@@ -14,6 +14,9 @@ type Hotel struct {
 	PhoneNumber string   `bson:"phoneNumber"`
 	Description string   `bson:"description"`
 	Address     *Address `bson:"address"`
+	Price       float32  `bson:"price"`
+	Score       float32  `bson:"score"`
+	ScoreTimes  int32    `bson:"scoreTimes"`
 }
 
 type Address struct {
@@ -34,6 +37,9 @@ func initializeDatabase(url string) *mgo.Session {
 		panic(err)
 	}
 	// defer session.Close()
+	price := float32(300.00)
+	score := float32(5.0)
+	score_times := int32(0)
 
 	c := session.DB("profile-db").C("hotels")
 	count, err := c.Find(&bson.M{"id": "1"}).Count()
@@ -54,7 +60,10 @@ func initializeDatabase(url string) *mgo.Session {
 				"United States",
 				"94102",
 				37.7867,
-				-122.4112}})
+				-122.4112},
+			price,
+			score,
+			score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -78,7 +87,10 @@ func initializeDatabase(url string) *mgo.Session {
 				"United States",
 				"94103",
 				37.7854,
-				-122.4005}})
+				-122.4005},
+			price,
+			score,
+			score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -102,7 +114,10 @@ func initializeDatabase(url string) *mgo.Session {
 				"United States",
 				"94103",
 				37.7834,
-				-122.4071}})
+				-122.4071},
+			price,
+			score,
+			score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -126,7 +141,10 @@ func initializeDatabase(url string) *mgo.Session {
 					"United States",
 					"94105",
 					37.7936,
-					-122.3930}})
+					-122.3930},
+				price,
+				score,
+				score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -150,7 +168,10 @@ func initializeDatabase(url string) *mgo.Session {
 				"United States",
 				"94109",
 				37.7831,
-				-122.4181}})
+				-122.4181},
+			price,
+			score,
+			score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -174,7 +195,10 @@ func initializeDatabase(url string) *mgo.Session {
 				"United States",
 				"94109",
 				37.7863,
-				-122.4015}})
+				-122.4015},
+			price,
+			score,
+			score_times})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -190,6 +214,7 @@ func initializeDatabase(url string) *mgo.Session {
 		phone_num := "(415) 284-40" + hotel_id
 		lat := 37.7835 + float32(i)/500.0 * 3
 		lon := -122.41 + float32(i)/500.0 * 4
+		price = 200.00 + float32(i)
 		if count == 0{
 			err = c.Insert(&Hotel{
 				hotel_id,
@@ -204,13 +229,15 @@ func initializeDatabase(url string) *mgo.Session {
 					"United States",
 					"94109",
 					lat,
-					lon}})
+					lon},
+				price,
+				score,
+				score_times})
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 	}
-
 
 	err = c.EnsureIndexKey("id")
 	if err != nil {

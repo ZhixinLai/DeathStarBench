@@ -575,9 +575,12 @@ func geoJSONResponse(hs []*profile.Hotel) map[string]interface{} {
 		fs = append(fs, map[string]interface{}{
 			"type": "Feature",
 			"id":   h.Id,
-			"properties": map[string]string{
+			"properties": map[string]interface{}{
 				"name":         h.Name,
 				"phone_number": h.PhoneNumber,
+				"price": h.Price,
+				"score": h.Score,
+				"scoreTimes": h.ScoreTimes,
 			},
 			"geometry": map[string]interface{}{
 				"type": "Point",

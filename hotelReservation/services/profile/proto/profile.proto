@@ -22,6 +22,9 @@ message Hotel {
   string description = 4;
   Address address = 5;
   repeated Image images = 6;
+  float price = 7;
+  float score = 8;
+  int32 scoreTimes = 9;
 }
 
 message Address {
