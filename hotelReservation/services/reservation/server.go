@@ -214,6 +214,125 @@ func (s *Server) MakeReservation(ctx context.Context, req *pb.Request) (*pb.Resu
 	return res, nil
 }
 
+// CancelReservation makes a reservation based on given information
+func (s *Server) CancelReservation(ctx context.Context, req *pb.Request) (*pb.Result, error) {
+	res := new(pb.Result)
+	res.HotelId = make([]string, 0)
+
+	session := s.MongoSession.Copy()
+	defer session.Close()
+
+	c := session.DB("reservation-db").C("reservation")
+
+	inDate, _ := time.Parse(
+		time.RFC3339,
+		req.InDate + "T12:00:00+00:00")
+
+	outDate, _ := time.Parse(
+		time.RFC3339,
+		req.OutDate + "T12:00:00+00:00")
+	hotelId := req.HotelId[0]
+
+	CustomerName := req.CustomerName
+
+	Number := int(req.RoomNumber)
+
+	indate := inDate.String()[0:10]
+
+	memc_date_num_map := make(map[string] int)
+
+	// check reservations
+	for inDate.Before(outDate) {
+		inDate = inDate.AddDate(0, 0, 1)
+		outdate := inDate.String()[0:10]
+
+		count, err := c.Find(&bson.M{"customerName":CustomerName, "hotelId": hotelId, "inDate": indate, "outDate": outdate, "number": Number}).Count()
+
+		if err != nil {
+			panic(err)
+		}
+		if count == 0{
+			return res, nil
+		}
+		indate = outdate
+	}
+
+	inDate, _ = time.Parse(
+		time.RFC3339,
+		req.InDate + "T12:00:00+00:00")
+	indate = inDate.String()[0:10]
+	
+	// count room number reserved
+	for inDate.Before(outDate) {
+		
+		count := 0
+		inDate = inDate.AddDate(0, 0, 1)
+		outdate := inDate.String()[0:10]
+
+		// first check memc
+		memc_key := hotelId + "_" + inDate.String()[0:10] + "_" + outdate
+		item, err := s.MemcClient.Get(memc_key)
+		if err == nil {
+			// memcached hit
+			count, _ = strconv.Atoi(string(item.Value))
+			// fmt.Printf("memcached hit %s = %d\n", memc_key, count)
+			memc_date_num_map[memc_key] = count - Number
+
+		} else if err == memcache.ErrCacheMiss {
+			// memcached miss
+			// fmt.Printf("memcached miss\n")
+			reserve := make([]reservation, 0)
+			err := c.Find(&bson.M{"hotelId": hotelId, "inDate": indate, "outDate": outdate}).All(&reserve)
+			if err != nil {
+				panic(err)
+			}
+			
+			for _, r := range reserve {
+				count += r.Number
+			}
+
+			memc_date_num_map[memc_key] = count - Number
+		} else {
+			fmt.Printf("Memmcached error = %s\n", err)
+			panic(err)
+		}
+		indate = outdate
+	}
+	
+	// only update reservation number cache after check succeeds
+	for key, val := range memc_date_num_map {
+		s.MemcClient.Set(&memcache.Item{Key: key, Value: []byte(strconv.Itoa(val))})
+	}
+
+	inDate, _ = time.Parse(
+		time.RFC3339,
+		req.InDate + "T12:00:00+00:00")
+
+	indate = inDate.String()[0:10]
+
+	for inDate.Before(outDate) {
+		inDate = inDate.AddDate(0, 0, 1)
+		outdate := inDate.String()[0:10]
+		
+		err := c.Remove(&bson.M{"customerName":CustomerName, "hotelId": hotelId, "inDate": indate, "outDate": outdate, "number": Number})
+
+		// err := c.Remove(&reservation{
+		// 	HotelId:      hotelId,
+		// 	CustomerName: req.CustomerName,
+		// 	InDate:       indate,
+		// 	OutDate:      outdate,
+		// 	Number:       Number,})
+		if err != nil {
+			panic(err)
+		}
+		indate = outdate
+	}
+
+	res.HotelId = append(res.HotelId, hotelId)
+
+	return res, nil
+}
+
 // CheckAvailability checks if given information is available
 func (s *Server) CheckAvailability(ctx context.Context, req *pb.Request) (*pb.Result, error) {
 	res := new(pb.Result)
