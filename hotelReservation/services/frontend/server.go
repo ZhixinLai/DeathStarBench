@@ -537,7 +537,7 @@ func (s *Server) cancelReservationHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	str := "Reserve successfully!"
+	str := "Cancel successfully!"
 	if recResp.Correct == false {
 		str = "Failed. Please check your username and password. "
 	} else {
