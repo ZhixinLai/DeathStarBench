@@ -316,12 +316,6 @@ func (s *Server) CancelReservation(ctx context.Context, req *pb.Request) (*pb.Re
 		
 		err := c.Remove(&bson.M{"customerName":CustomerName, "hotelId": hotelId, "inDate": indate, "outDate": outdate, "number": Number})
 
-		// err := c.Remove(&reservation{
-		// 	HotelId:      hotelId,
-		// 	CustomerName: req.CustomerName,
-		// 	InDate:       indate,
-		// 	OutDate:      outdate,
-		// 	Number:       Number,})
 		if err != nil {
 			panic(err)
 		}
