@@ -4,6 +4,7 @@ package profile;
 
 service Profile {
   rpc GetProfiles(Request) returns (Result);
+  rpc UpdateScore(ScoreRequest) returns (ScoreResult);
 }
 
 message Request {
@@ -41,4 +42,13 @@ message Address {
 message Image {
   string url = 1;
   bool default = 2;
+}
+
+message ScoreRequest {
+  string hotelId = 1;
+  float score = 2;
+}
+
+message ScoreResult {
+  bool correct = 1;
 }

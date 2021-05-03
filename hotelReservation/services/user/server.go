@@ -252,6 +252,48 @@ func (s *Server) Delete(ctx context.Context, req *pb.Request) (*pb.Result, error
 	return res, nil
 }
 
+// CheckUser returns whether the username and password are correct.
+func (s *Server) OrderHistoryUpdate(ctx context.Context, req *pb.OrderHistoryRequest) (*pb.OrderHistoryResult, error) {
+
+	res := new(pb.OrderHistoryResult)
+	res.Correct = false
+
+	user_name := req.Username
+	orderhistory := req.Orderhistory
+
+	session, err := mgo.Dial("mongodb-user")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	c := session.DB("user-db").C("user")
+
+	var user_prof User
+	err = c.Find(bson.M{"username": user_name}).One(&user_prof)
+
+	if err != nil {
+		log.Println("Failed get user data: ", err)
+	} else {
+		user_prof.Orderhistory = user_prof.Orderhistory + "; " + orderhistory
+		err2 := c.Update(
+			bson.M{"username": user_name},
+			bson.M{"$set": bson.M{
+				"orderhistory": user_prof.Orderhistory,
+			}},
+		)
+		if err2 != nil {
+			log.Println("Failed update user data: ", err2)
+		} else {
+			res.Correct = true
+		}
+	}
+
+	fmt.Printf("Done update users orderhistory\n")
+
+	return res, nil
+}
+
 
 // loadUsers loads hotel users from mongodb.
 func loadUsers(session *mgo.Session) map[string]string {

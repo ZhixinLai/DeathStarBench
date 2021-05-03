@@ -152,3 +152,66 @@ func (s *Server) GetProfiles(ctx context.Context, req *pb.Request) (*pb.Result, 
 	// fmt.Printf("In GetProfiles after getting resp\n")
 	return res, nil
 }
+
+
+
+// GetProfiles returns hotel profiles for requested IDs
+func (s *Server) UpdateScore(ctx context.Context, req *pb.ScoreRequest) (*pb.ScoreResult, error) {
+	
+	res := new(pb.ScoreResult)
+	res.Correct = false
+
+	// one hotel should only have one profile
+	hotel_id := req.HotelId
+	new_score := req.Score
+	hotel_prof := new(pb.Hotel)
+	// first check memcached
+	item, err := s.MemcClient.Get(hotel_id)
+
+	session := s.MongoSession.Copy()
+	defer session.Close()
+	c := session.DB("profile-db").C("hotels")
+
+	if err == nil {
+		// memcached hit
+
+		json.Unmarshal(item.Value, hotel_prof)
+
+	} else if err == memcache.ErrCacheMiss {
+		// memcached miss, set up mongo connection
+		err := c.Find(bson.M{"id": hotel_id}).One(&hotel_prof)
+
+		if err != nil {
+			log.Println("Failed get hotels data: ", err)
+			return res, nil
+		}
+
+	} else {
+		fmt.Printf("Memmcached error = %s\n", err)
+		panic(err)
+		return res, nil
+	}
+
+	score_times := hotel_prof.ScoreTimes + 1
+	score := (hotel_prof.Score * float32(hotel_prof.ScoreTimes) + new_score) / float32(score_times)
+	
+	hotel_prof.ScoreTimes = score_times
+	hotel_prof.Score = score
+
+	err = c.Update(
+		bson.M{"id": hotel_id},
+		bson.M{"$set": bson.M{
+			"score": score,
+			"scoreTimes": score_times,
+		}},
+	)
+
+	prof_json, err := json.Marshal(hotel_prof)
+	memc_str := string(prof_json)
+
+	// write to memcached
+	s.MemcClient.Set(&memcache.Item{Key: hotel_id, Value: []byte(memc_str)})
+
+	res.Correct = true
+	return res, nil
+}

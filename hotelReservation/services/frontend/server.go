@@ -66,6 +66,7 @@ func (s *Server) Run() error {
   	mux.Handle("/userregister", http.HandlerFunc(s.userRegisterHandler))
 	mux.Handle("/usermodify", http.HandlerFunc(s.userModifyHandler))
 	mux.Handle("/userdelete", http.HandlerFunc(s.userDeleteHandler))
+	mux.Handle("/userevaluate", http.HandlerFunc(s.userEvaluateHandler))
 	mux.Handle("/reservation", http.HandlerFunc(s.reservationHandler))
 	mux.Handle("/cancelreservation", http.HandlerFunc(s.cancelReservationHandler))
 
@@ -410,6 +411,89 @@ func (s *Server) userDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		"message": str,
 	}
 
+	json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) userEvaluateHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+
+	inDate, outDate := r.URL.Query().Get("inDate"), r.URL.Query().Get("outDate")
+	if inDate == "" || outDate == "" {
+		http.Error(w, "Please specify inDate/outDate params", http.StatusBadRequest)
+		return
+	}
+
+	if !checkDataFormat(inDate) || !checkDataFormat(outDate) {
+		http.Error(w, "Please check inDate/outDate format (YYYY-MM-DD)", http.StatusBadRequest)
+		return
+	}
+
+	customerName := r.URL.Query().Get("customerName")
+	if customerName == "" {
+		http.Error(w, "Please specify customerName params", http.StatusBadRequest)
+		return
+	}
+
+	username, password := r.URL.Query().Get("username"), r.URL.Query().Get("password")
+	if username == "" || password == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+
+	// Check username and password
+	recResp, err := s.userClient.CheckUser(ctx, &user.Request{
+		Username: username,
+		Password: password,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	str := "Score successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your username and password. "
+	} else {
+
+		hotelId := r.URL.Query().Get("hotelId")
+		score := r.URL.Query().Get("score")
+
+		score_float, err := strconv.ParseFloat(score, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		// update order history for user
+		orderhistory := "hotelId: " + hotelId + ", inDate: " + inDate + ", outDate: " + outDate + ", score: " + score
+		orderhistoryResp, err := s.userClient.OrderHistoryUpdate(ctx, &user.OrderHistoryRequest{
+			Username: username,
+			Orderhistory: orderhistory,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if orderhistoryResp.Correct == false {
+			str = "Failed. "
+		}
+
+		// update score in profile of hotel
+		profileResp, err := s.profileClient.UpdateScore(ctx, &profile.ScoreRequest{
+			HotelId: hotelId,
+			Score: float32(score_float),
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if profileResp.Correct == false {
+			str = "Failed. "
+		}
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
 	json.NewEncoder(w).Encode(res)
 }
 

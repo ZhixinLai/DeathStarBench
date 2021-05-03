@@ -8,6 +8,7 @@ service User {
   rpc Register(RegisterRequest) returns (RegisterResult);
   rpc Modify(ModifyRequest) returns (ModifyResult);
   rpc Delete(Request) returns (Result);
+  rpc OrderHistoryUpdate(OrderHistoryRequest) returns (OrderHistoryResult);
 }
 
 message Request {
@@ -44,5 +45,14 @@ message ModifyRequest {
 }
 
 message ModifyResult {
+  bool correct = 1;
+}
+
+message OrderHistoryRequest {
+  string username = 1;
+  string orderhistory = 2;
+}
+
+message OrderHistoryResult {
   bool correct = 1;
 }
