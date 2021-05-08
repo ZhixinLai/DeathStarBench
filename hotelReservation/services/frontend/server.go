@@ -248,7 +248,7 @@ func (s *Server) recommendHandler(w http.ResponseWriter, r *http.Request) {
 	lon := float64(Lon)
 
 	require := r.URL.Query().Get("require")
-	if require != "dis" && require != "rate" && require != "price" {
+	if require != "dis" && require != "rate" && require != "price" && require != "mix"  {
 		http.Error(w, "Please specify require params", http.StatusBadRequest)
 		return
 	}

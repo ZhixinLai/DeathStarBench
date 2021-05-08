@@ -146,6 +146,54 @@ func (s *Server) GetRecommendations(ctx context.Context, req *pb.Request) (*pb.R
 				res.HotelIds = append(res.HotelIds, hotel.HId)
 			}
 		}
+	} else if require == "mix" {
+
+		p1 := &geoindex.GeoPoint{
+			Pid:  "",
+			Plat: req.Lat,
+			Plon: req.Lon,
+		}
+
+		hotelScores := make(map[string]HotelScore)
+		distanceScoreSum := 0.0
+		rateScoreSum := 0.0
+		priceScoreSum := 0.0
+
+		for _, hotel := range s.hotels {
+			tmp := float64(geoindex.Distance(p1, &geoindex.GeoPoint{
+				Pid:  "",
+				Plat: hotel.HLat,
+				Plon: hotel.HLon,
+			})) / 1000
+			
+			var hotelScore HotelScore
+			hotelScore.HId = hotel.HId
+			if tmp > 1 {
+				hotelScore.HDis = 1 / tmp
+			} else {
+				hotelScore.HDis = 1
+			}
+			// hotelScore.HDis = 1 / math.max(10, tmp)
+			hotelScore.HRate = hotel.HRate
+			hotelScore.HPrice = 1 / hotel.HPrice
+			distanceScoreSum += hotelScore.HDis
+			rateScoreSum += hotelScore.HRate
+			priceScoreSum += hotelScore.HPrice
+			hotelScores[hotel.HId] = hotelScore
+			
+		}
+
+		max := 0.0
+		var resId string  
+		for _, hotelScore := range hotelScores {
+			mixScore := 0.5 * hotelScore.HDis / distanceScoreSum + 0.3 * hotelScore.HRate / rateScoreSum + 0.2 * hotelScore.HPrice / priceScoreSum
+			if mixScore > max {
+				resId = hotelScore.HId
+				max = mixScore
+			}
+		}
+		res.HotelIds = append(res.HotelIds, resId)
+
 	} else {
 		log.Println("Wrong parameter: ", require)
 	}
@@ -185,6 +233,13 @@ type Hotel struct {
 	HId    string        `bson:"hotelId"`
 	HLat   float64       `bson:"lat"`
 	HLon   float64       `bson:"lon"`
+	HRate  float64       `bson:"rate"`
+	HPrice float64       `bson:"price"`
+}
+
+type HotelScore struct {
+	HId    string        `bson:"hotelId"`
+	HDis   float64       `bson:"dis"`
 	HRate  float64       `bson:"rate"`
 	HPrice float64       `bson:"price"`
 }
