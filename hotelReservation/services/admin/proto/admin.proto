@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package admin;
+
+service Admin {
+  rpc Login(LoginRequest) returns (LoginReply);
+  rpc Register(RegisterRequest) returns (RegisterReply);
+  rpc Update(UpdateRequest) returns (UpdateReply);
+  rpc CheckHotel(CheckRequest) returns (CheckReply);
+}
+message CheckRequest {
+  string email = 2;
+  string id = 1;
+}
+message CheckReply {
+  bool correct = 1;
+}
+
+message UpdateRequest{
+  string id = 1;
+  string target = 2;
+  string content = 3;
+}
+message UpdateReply{
+  bool correct = 1;
+}
+message RegisterRequest{
+  string name = 1;
+  string email = 2;
+  string password = 3;
+  repeated string hotels = 4;
+  string id = 5;
+}
+message RegisterReply{
+  bool correct = 1;
+}
+message LoginRequest{
+  string email = 1;
+  string password = 2;
+}
+
+message LoginReply{
+  bool correct = 1;
+}

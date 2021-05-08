@@ -117,6 +117,19 @@ services:
     restart: always
     # cpuset: "7"
 
+  admin:
+    build: .
+    image: hotel_reserv_admin_single_node
+    entrypoint: admin
+    container_name: 'hotel_reserv_admin'
+    ports:
+      - "5050:5050"
+    depends_on:
+      - mongodb-admin
+      - consul
+    restart: always
+    #cpuset : "6"
+
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: 'hotel_reserv_jaeger'
@@ -176,6 +189,8 @@ services:
       options:
         max-size: 50m
     # cpuset: "10"
+
+
 
   mongodb-geo:
     image: mongo
@@ -242,7 +257,17 @@ services:
     # cpuset: "16"
     volumes:
       - user:/data/db
-    
+
+  mongodb-admin:
+    image: mongo
+    container_name: 'hotel_reserv_admin_mongo'
+    hostname: admin-db
+    ports:
+      - "27024:27017"
+    restart: always
+    volumes:
+      - admin:/data/db
+
 volumes:
   geo:
   profile:
@@ -250,3 +275,4 @@ volumes:
   recommendation:
   reservation:
   user:
+  admin:

@@ -3,18 +3,18 @@ package frontend
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/harlow/go-micro-services/services/recommendation/proto"
-	"github.com/harlow/go-micro-services/services/reservation/proto"
-	"github.com/harlow/go-micro-services/services/user/proto"
-	"net/http"
-	"strconv"
-
 	"github.com/harlow/go-micro-services/dialer"
 	"github.com/harlow/go-micro-services/registry"
+	"github.com/harlow/go-micro-services/services/admin/proto"
 	"github.com/harlow/go-micro-services/services/profile/proto"
+	"github.com/harlow/go-micro-services/services/recommendation/proto"
+	"github.com/harlow/go-micro-services/services/reservation/proto"
 	"github.com/harlow/go-micro-services/services/search/proto"
+	"github.com/harlow/go-micro-services/services/user/proto"
 	"github.com/harlow/go-micro-services/tracing"
 	"github.com/opentracing/opentracing-go"
+	"net/http"
+	"strconv"
 )
 
 // Server implements frontend service
@@ -23,11 +23,12 @@ type Server struct {
 	profileClient        profile.ProfileClient
 	recommendationClient recommendation.RecommendationClient
 	userClient           user.UserClient
+	adminClient          admin.AdminClient
 	reservationClient    reservation.ReservationClient
-	IpAddr	 string
-	Port     int
-	Tracer   opentracing.Tracer
-	Registry *registry.Client
+	IpAddr               string
+	Port                 int
+	Tracer               opentracing.Tracer
+	Registry             *registry.Client
 }
 
 // Run the server
@@ -56,6 +57,9 @@ func (s *Server) Run() error {
 		return err
 	}
 
+	if err := s.initAdminClient("srv-admin"); err != nil {
+		return err
+	}
 	// fmt.Printf("frontend before mux\n")
 
 	mux := tracing.NewServeMux(s.Tracer)
@@ -63,18 +67,31 @@ func (s *Server) Run() error {
 	mux.Handle("/hotels", http.HandlerFunc(s.searchHandler))
 	mux.Handle("/recommendations", http.HandlerFunc(s.recommendHandler))
 	mux.Handle("/user", http.HandlerFunc(s.userHandler))
-  	mux.Handle("/userregister", http.HandlerFunc(s.userRegisterHandler))
+	mux.Handle("/userregister", http.HandlerFunc(s.userRegisterHandler))
 	mux.Handle("/usermodify", http.HandlerFunc(s.userModifyHandler))
 	mux.Handle("/userdelete", http.HandlerFunc(s.userDeleteHandler))
 	mux.Handle("/userevaluate", http.HandlerFunc(s.userEvaluateHandler))
 	mux.Handle("/reservation", http.HandlerFunc(s.reservationHandler))
 	mux.Handle("/cancelreservation", http.HandlerFunc(s.cancelReservationHandler))
-
+	mux.Handle("/adminlogin", http.HandlerFunc(s.adminLoginHandler))
+	mux.Handle("/daminregister", http.HandlerFunc(s.adminRegisterHandler))
+	mux.Handle("/updateProfile", http.HandlerFunc(s.updateProfileHandler))
 	// fmt.Printf("frontend starts serving\n")
 
 	return http.ListenAndServe(fmt.Sprintf(":%d", s.Port), mux)
 }
-
+func (s *Server) initAdminClient(name string) error {
+	conn, err := dialer.Dial(
+		name,
+		dialer.WithTracer(s.Tracer),
+		dialer.WithBalancer(s.Registry.Client),
+	)
+	if err != nil {
+		return fmt.Errorf("dialer error: %v", err)
+	}
+	s.adminClient = admin.NewAdminClient(conn)
+	return nil
+}
 func (s *Server) initSearchClient(name string) error {
 	conn, err := dialer.Dial(
 		name,
@@ -265,6 +282,146 @@ func (s *Server) recommendHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(geoJSONResponse(profileResp.Hotels))
 }
+func (s *Server) adminRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+	// hotels := []string {"1", "2", "3"}
+	hotels := r.URL.Query().Get("hotels")
+	if hotels == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+	var hotelsArr []string
+	json.Unmarshal([]byte(hotels), hotelsArr)
+	name, email, password, id := r.URL.Query().Get("name"), r.URL.Query().Get("email"), r.URL.Query().Get("password"), r.URL.Query().Get("id")
+	if name == "" || email == "" || password == "" || id == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+	recResp, err := s.adminClient.Register(ctx, &admin.RegisterRequest{
+		Name:     name,
+		Email:    email,
+		Password: password,
+		Hotels:   hotelsArr,
+		Id:       id,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	str := "Register successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your register input. "
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
+func (s *Server) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+	email, password := r.URL.Query().Get("password"), r.URL.Query().Get("password")
+	if email == "" || password == "" {
+		http.Error(w, "Please specify email /password params", http.StatusBadRequest)
+		return
+	}
+	recResp, err := s.adminClient.Login(ctx, &admin.LoginRequest{
+		Email:    email,
+		Password: password,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if recResp.Correct == false {
+		str := "Failed. Please check your username and password. "
+		res := map[string]interface{}{
+			"message": str,
+		}
+
+		json.NewEncoder(w).Encode(res)
+		return
+	} else {
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			http.Error(w, "Please specify id params", http.StatusBadRequest)
+			return
+		}
+		checkResp, err1 := s.adminClient.CheckHotel(ctx, &admin.CheckRequest{
+			Email: email,
+			Id:    id,
+		})
+		if err1 != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if checkResp.Correct == false {
+			str := "It is not your hotel, you could not update it "
+			res := map[string]interface{}{
+				"message": str,
+			}
+
+			json.NewEncoder(w).Encode(res)
+			return
+		} else {
+			target, content := r.URL.Query().Get("target"), r.URL.Query().Get("content")
+			if target == "" {
+				http.Error(w, "Please specify target/content params", http.StatusBadRequest)
+				return
+			}
+			updateResp, err2 := s.adminClient.Update(ctx, &admin.UpdateRequest{
+				Id:      id,
+				Target:  target,
+				Content: content,
+			})
+			if err2 != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			str1 := "Update fail"
+			if updateResp.Correct == true {
+				str1 = "Success"
+			}
+			res := map[string]interface{}{
+				"message": str1,
+			}
+			json.NewEncoder(w).Encode(res)
+			return
+		}
+	}
+
+}
+func (s *Server) adminLoginHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	ctx := r.Context()
+	//get parameter
+	email, password := r.URL.Query().Get("email"), r.URL.Query().Get("password")
+	if email == "" || password == "" {
+		http.Error(w, "Please specify username and password", http.StatusBadRequest)
+		return
+	}
+	recResp, err := s.adminClient.Login(ctx, &admin.LoginRequest{
+		Email:    email,
+		Password: password,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	str := "Login successfully!"
+	if recResp.Correct == false {
+		str = "Failed. Please check your username and password. "
+	}
+
+	res := map[string]interface{}{
+		"message": str,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
 
 func (s *Server) userHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -317,10 +474,10 @@ func (s *Server) userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	recResp, err := s.userClient.Register(ctx, &user.RegisterRequest{
 		Username: username,
 		Password: password,
-		Age: int32(age_int),
-		Sex: sex,
-		Mail: mail,
-		Phone: phone,
+		Age:      int32(age_int),
+		Sex:      sex,
+		Mail:     mail,
+		Phone:    phone,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -338,8 +495,6 @@ func (s *Server) userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(res)
 }
-
-
 
 func (s *Server) userModifyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -360,10 +515,10 @@ func (s *Server) userModifyHandler(w http.ResponseWriter, r *http.Request) {
 	recResp, err := s.userClient.Modify(ctx, &user.ModifyRequest{
 		Username: username,
 		Password: password,
-		Age: int32(age_int),
-		Sex: sex,
-		Mail: mail,
-		Phone: phone,
+		Age:      int32(age_int),
+		Sex:      sex,
+		Mail:     mail,
+		Phone:    phone,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -466,7 +621,7 @@ func (s *Server) userEvaluateHandler(w http.ResponseWriter, r *http.Request) {
 		// update order history for user
 		orderhistory := "hotelId: " + hotelId + ", inDate: " + inDate + ", outDate: " + outDate + ", score: " + score
 		orderhistoryResp, err := s.userClient.OrderHistoryUpdate(ctx, &user.OrderHistoryRequest{
-			Username: username,
+			Username:     username,
 			Orderhistory: orderhistory,
 		})
 		if err != nil {
@@ -480,7 +635,7 @@ func (s *Server) userEvaluateHandler(w http.ResponseWriter, r *http.Request) {
 		// update score in profile of hotel
 		profileResp, err := s.profileClient.UpdateScore(ctx, &profile.ScoreRequest{
 			HotelId: hotelId,
-			Score: float32(score_float),
+			Score:   float32(score_float),
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -647,7 +802,6 @@ func (s *Server) cancelReservationHandler(w http.ResponseWriter, r *http.Request
 	}
 	json.NewEncoder(w).Encode(res)
 
-	
 }
 
 // return a geoJSON response that allows google map to plot points directly on map
@@ -662,9 +816,9 @@ func geoJSONResponse(hs []*profile.Hotel) map[string]interface{} {
 			"properties": map[string]interface{}{
 				"name":         h.Name,
 				"phone_number": h.PhoneNumber,
-				"price": h.Price,
-				"score": h.Score,
-				"scoreTimes": h.ScoreTimes,
+				"price":        h.Price,
+				"score":        h.Score,
+				"scoreTimes":   h.ScoreTimes,
 			},
 			"geometry": map[string]interface{}{
 				"type": "Point",

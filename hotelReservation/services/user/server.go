@@ -26,11 +26,11 @@ const name = "srv-user"
 type Server struct {
 	users map[string]string
 
-	Tracer   opentracing.Tracer
-	Registry *registry.Client
-	Port     int
-	IpAddr	 string
-	MongoSession 	*mgo.Session
+	Tracer       opentracing.Tracer
+	Registry     *registry.Client
+	Port         int
+	IpAddr       string
+	MongoSession *mgo.Session
 }
 
 // Run starts the server
@@ -108,6 +108,7 @@ func (s *Server) CheckUser(ctx context.Context, req *pb.Request) (*pb.Result, er
 	err2 := c.Find(&bson.M{"username": req.Username}).All(&users)
 	res.Correct = false
 	if err2 != nil {
+		log.Fatal("admin not found")
 		log.Fatal(err2)
 	} else {
 		for _, user := range users {
@@ -119,7 +120,7 @@ func (s *Server) CheckUser(ctx context.Context, req *pb.Request) (*pb.Result, er
 	// if true_pass, found := s.users[req.Username]; found {
 	//     res.Correct = pass == true_pass
 	// }
-	
+
 	// res.Correct = user.Password == pass
 
 	// fmt.Printf("CheckUser %d\n", res.Correct)
@@ -154,7 +155,7 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Reg
 	if err != nil {
 		log.Fatal(err)
 	}
-	if count == 0{
+	if count == 0 {
 		err = c.Insert(&User{user_name, pass, age, sex, mail, phone, orderhistory})
 		if err != nil {
 			log.Fatal(err)
@@ -167,7 +168,6 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Reg
 
 	return res, nil
 }
-
 
 // CheckUser returns whether the username and password are correct.
 func (s *Server) Modify(ctx context.Context, req *pb.ModifyRequest) (*pb.ModifyResult, error) {
@@ -196,7 +196,7 @@ func (s *Server) Modify(ctx context.Context, req *pb.ModifyRequest) (*pb.ModifyR
 	if err != nil {
 		log.Fatal(err)
 	}
-	if count == 1{
+	if count == 1 {
 		err := c.Remove(&bson.M{"username": user_name})
 		if err != nil {
 			log.Fatal(err)
@@ -208,7 +208,7 @@ func (s *Server) Modify(ctx context.Context, req *pb.ModifyRequest) (*pb.ModifyR
 				res.Correct = true
 			}
 		}
-		
+
 	}
 
 	fmt.Printf("Done modify users\n")
@@ -238,9 +238,9 @@ func (s *Server) Delete(ctx context.Context, req *pb.Request) (*pb.Result, error
 	res.Correct = false
 	if err != nil {
 		log.Fatal(err)
-	} 
+	}
 	if count != 0 {
-		
+
 		err := c.Remove(&bson.M{"username": req.Username})
 		if err != nil {
 			log.Fatal(err)
@@ -294,7 +294,6 @@ func (s *Server) OrderHistoryUpdate(ctx context.Context, req *pb.OrderHistoryReq
 	return res, nil
 }
 
-
 // loadUsers loads hotel users from mongodb.
 func loadUsers(session *mgo.Session) map[string]string {
 	// session, err := mgo.Dial("mongodb-user")
@@ -326,7 +325,6 @@ func loadUsers(session *mgo.Session) map[string]string {
 // // insertUsers loads hotel users from mongodb.
 // func (s *Server) insertUsers(session *mgo.Session, req *pb.RegisterRequest) (*pb.RegisterResult, error) {
 
-
 // 	res := new(pb.RegisterResult)
 // 	res.Correct = false
 
@@ -339,7 +337,6 @@ func loadUsers(session *mgo.Session) map[string]string {
 // 	phone := req.Phone
 // 	orderhistory := ""
 
-	
 // 	s := session.Copy()
 // 	defer s.Close()
 // 	c := s.DB("user-db").C("user")
@@ -370,11 +367,11 @@ func loadUsers(session *mgo.Session) map[string]string {
 // }
 
 type User struct {
-	Username string `bson:"username"`
-	Password string `bson:"password"`
-	Age int32 `bson:"age"`
-	Sex string `bson:"sex"`
-	Mail string `bson:"mail"`
-	Phone string `bson:"phone"`
+	Username     string `bson:"username"`
+	Password     string `bson:"password"`
+	Age          int32  `bson:"age"`
+	Sex          string `bson:"sex"`
+	Mail         string `bson:"mail"`
+	Phone        string `bson:"phone"`
 	Orderhistory string `bson:"orderhistory"`
 }
